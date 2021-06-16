@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_margin="6dp"
+    android:layout_height="wrap_content">
+
+    <LinearLayout
+        android:orientation="horizontal"
+        android:weightSum="10"
+        android:layout_margin="6dp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <TextView
+            android:id="@+id/categoryNameText"
+            android:fontFamily="casual"
+            android:textAlignment="textStart"
+            android:textSize="20sp"
+            android:layout_weight="9"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"/>
+
+        <RadioButton
+            android:clickable="false"
+            android:id="@+id/selectedCategoryRadioButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"/>
+
+    </LinearLayout>
+
+</androidx.cardview.widget.CardView>
