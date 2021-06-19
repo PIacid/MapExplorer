@@ -1,8 +1,9 @@
-package com.devplacid.mapexplorer.api
+package com.devplacid.mapexplorer.datamodel.api
 
 import java.io.Serializable
 
 enum class Category(val apiName: String, val displayedName: String): Serializable {
+    BOOKMARKS("bookmarks", "Bookmarks"),
     HOTEL("hotel", "Hotel"),
     HOSTEL("hostel", "Hostel"),
     SUPERMARKET("supermarket", "Supermarket"),

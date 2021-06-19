@@ -3,11 +3,9 @@ package com.devplacid.mapexplorer.view
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.recyclerview.widget.DiffUtil
-import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.devplacid.mapexplorer.R
-import com.devplacid.mapexplorer.api.Category
+import com.devplacid.mapexplorer.datamodel.api.Category
 import kotlinx.android.synthetic.main.category_item.view.*
 
 class CategoryAdapter(private val name: String?): RecyclerView.Adapter<CategoryAdapter.ItemHolder>() {

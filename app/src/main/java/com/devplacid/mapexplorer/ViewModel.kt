@@ -5,26 +5,36 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import com.devplacid.mapexplorer.api.Category
-import com.devplacid.mapexplorer.api.Place
-import com.devplacid.mapexplorer.api.RetrofitClient
+import com.devplacid.mapexplorer.datamodel.Place
+import com.devplacid.mapexplorer.datamodel.Repository
+import com.devplacid.mapexplorer.datamodel.api.Category
+import com.devplacid.mapexplorer.datamodel.api.RetrofitClient
+import com.devplacid.mapexplorer.datamodel.database.PlaceEntity
+import com.devplacid.mapexplorer.datamodel.database.PlacesDatabase
 import com.devplacid.mapexplorer.geo.BoundingBox
 import com.devplacid.mapexplorer.geo.LocationSource
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.SphericalUtil
+import io.reactivex.Completable
 import io.reactivex.Observable
+import io.reactivex.disposables.Disposable
 import io.reactivex.schedulers.Schedulers
 
-class ViewModel(val app: Application) : AndroidViewModel(app) {
+class ViewModel(app: Application) : AndroidViewModel(app) {
 
     private val loadedPlaces = mutableListOf<Place>()
 
     var currentLatLng: LatLng? = null
     var areaRadiusM: Int = 1000
-    var currentCategory: String? = null
+    var currentCategory: String = "bookmarks"
 
-    private val locationSource = LocationSource(app.baseContext)
-    private val retrofitClient = RetrofitClient()
+    private val locationSource by lazy { LocationSource(app.baseContext) }
+    private val retrofitClient by lazy { RetrofitClient() }
+    private val placesDao by lazy { PlacesDatabase.getDB(app).getDao() }
+    private val repo by lazy { Repository(retrofitClient, placesDao) }
+
+    var databaseDisposable: Disposable? = null
+    var serverDisposable: Disposable? = null
 
     private val locationData = MutableLiveData<LatLng?>()
     val outDataLocation: LiveData<LatLng?> = locationData
@@ -32,11 +42,59 @@ class ViewModel(val app: Application) : AndroidViewModel(app) {
     private val markersData = MutableLiveData<List<Place>?>()
     val outDataMarkers: LiveData<List<Place>?> = markersData
 
-    private fun checkInRange(place: Place, rad: Int) = place.properties.distance < rad
+    private fun checkInRange(place: Place, rad: Int) = place.distance < rad
 
     fun remove(place: Place?) = place?.let {
-        loadedPlaces.remove(it)
-        onSearchRangeChanged()
+        if (place.isBookmark) {
+            val entity = PlaceEntity(
+                it.lat,
+                it.lon,
+                it.name,
+                it.distance
+            )
+            repo.deleteFromDb(entity)
+        } else {
+            loadedPlaces.remove(it)
+            onSearchRangeChanged()
+        }
+    }
+
+    fun save(place: Place?) {
+        if (currentCategory == Category.BOOKMARKS.apiName) return
+        place?.let {
+            val entity = PlaceEntity(
+                place.lat,
+                place.lon,
+                place.name,
+                place.distance
+            )
+            repo.saveBookmark(entity)
+            place.isBookmark = true
+            onSearchRangeChanged()
+        }
+    }
+
+
+
+    @SuppressLint("CheckResult")
+    fun getServerCategory(category: String = currentCategory) {
+        if (currentLatLng == null) return
+
+        val boundingBox = BoundingBox(currentLatLng!!)
+        currentCategory = category
+
+        serverDisposable = repo.requestPlaces(category, boundingBox)
+            .doOnSubscribe{ databaseDisposable?.dispose() }
+            .subscribe(
+                {
+                    loadedPlaces.clear()
+                    loadedPlaces.addAll(it)
+                    onSearchRangeChanged()
+                }, {
+                    markersData.postValue(null)
+                    it.printStackTrace()
+                }
+            )
     }
 
 
@@ -53,30 +111,21 @@ class ViewModel(val app: Application) : AndroidViewModel(app) {
     }
 
     @SuppressLint("CheckResult")
-    fun requestPlaces(category: String? = currentCategory) {
-        if (currentLatLng == null || category == null) return
+    fun getDatabaseBookmarks() {
+        currentCategory = "bookmarks"
 
-        val boundingBox = BoundingBox(currentLatLng!!)
-        currentCategory = category
-
-        retrofitClient.getApiClient().getPlaces(
-            category,
-            "100",
-            boundingBox.lat1,
-            boundingBox.lon1,
-            boundingBox.lat2,
-            boundingBox.lon2
-        )
-            .subscribeOn(Schedulers.io())
-            .subscribe({
-                loadedPlaces.clear()
-                loadedPlaces.addAll(it.features)
-                onSearchRangeChanged()
-            }, {
-                markersData.postValue(null)
-            })
+        databaseDisposable = repo.readBookmarksFromDB()
+            .doOnSubscribe{ serverDisposable?.dispose() }
+            .subscribe(
+                {
+                    loadedPlaces.clear()
+                    loadedPlaces.addAll(it)
+                    onSearchRangeChanged()
+                }, {
+                    it.printStackTrace()
+                }
+            )
     }
-
 
     @SuppressLint("CheckResult")
     fun getLocation() {

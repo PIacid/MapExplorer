@@ -11,7 +11,7 @@ import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProviders
 import com.devplacid.mapexplorer.R
 import com.devplacid.mapexplorer.ViewModel
-import com.devplacid.mapexplorer.api.Place
+import com.devplacid.mapexplorer.datamodel.Place
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
@@ -47,6 +47,10 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         initMapIndependentListeners()
 
         checkPermissions()
+
+        if (savedInstanceState == null) {
+            viewModel.getDatabaseBookmarks()
+        }
     }
 
     @SuppressLint("CheckResult")
@@ -97,26 +101,37 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
-    fun saveMarker() {
+    private fun saveMarker() {
         selectedMarker?.let {
-            //TODO save it
+            val place = displayedPlaces[it]
+            viewModel.save(place)
             expandableLayout.collapse()
+            Toast.makeText(
+                this,
+                "Place is saved",
+                Toast.LENGTH_SHORT
+            )
+                .show()
         }
     }
 
-    fun removeMarker() {
+    private fun removeMarker() {
         selectedMarker?.let {
             viewModel.remove(displayedPlaces[it])
             expandableLayout.collapse()
+            Toast.makeText(
+                this,
+                "Place is deleted",
+                Toast.LENGTH_SHORT
+            )
+                .show()
         }
     }
 
 
     private fun openSelectorActivity() {
         val intent = Intent(this.baseContext, SelectionActivity::class.java)
-        viewModel.currentCategory.let {
-            intent.putExtra("category", it)
-        }
+        intent.putExtra("category", viewModel.currentCategory)
         expandableLayout.collapse()
         startActivityForResult(intent, 1)
     }
@@ -204,15 +219,19 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private fun setMarker(place: Place) {
-        val marker = gMap?.addMarker(
-            MarkerOptions().position(
-                LatLng(
-                    place.properties.lat,
-                    place.properties.lon
-                )
-            ).title(place.properties.name)
+        val options = MarkerOptions().position(
+            LatLng(
+                place.lat,
+                place.lon
+            )
         )
-        marker?.isDraggable = true
+            .title(place.name)
+
+        if (place.isBookmark) {
+            options.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE))
+        }
+
+        val marker = gMap?.addMarker(options)
 
         displayedPlaces[marker] = place
     }
@@ -244,7 +263,10 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         if (resultCode == RESULT_OK && data != null) {
             val category = data.extras?.getString("apiName", "") ?: return
-            viewModel.requestPlaces(category)
+            when (category) {
+                "bookmarks" -> viewModel.getDatabaseBookmarks()
+                else -> viewModel.getServerCategory(category)
+            }
         } else {
             super.onActivityResult(requestCode, resultCode, data)
         }
